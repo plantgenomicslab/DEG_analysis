@@ -30,16 +30,14 @@ getPairs <- function(samplefile){
 getRepetitions <- function(samplefile){
 	# Create empty data frame, two rows two cols
 	reps <- data.frame("Reps"=c(0,0), "test"=c(5,5), row.names=getPairs(samplefile))
-	print(reps$Reps)
-	reps$Reps <- as.numeric(reps$Reps)
-	print(reps["CEB",2]+1)
+	reps$Reps <- as.numeric(as.character(reps$Reps))
 	# Loop through rows in samplefile
 	for (i in 1:nrow(samplefile)){
 		# If row's condition is already in data frame
-		reps[samplefile[i,1],1] <- as.double((reps[samplefile[i,1],1]) + 1)
+		reps$Reps[samplefile[i,1]] <- reps$Reps[samplefile[i,1]] + 1
 	}
-	print(reps)
 	# Return second column of data frame (should be a vector)
+	return(reps$Reps)
 }
 
 deseqAnalysis <- function(ftc_matrix, samplefile, args){
@@ -69,12 +67,13 @@ edgeRAnalysis <- function(ftc_matrix, samplefile, methd, args){
 	dge_ftcnts_list <- dge_ftcnts_list[keep, keep.lib.sizes=F]
 	dge_ftcnts_list <- calcNormFactors(dge_ftcnts_list, method=methd)
 	design <- model.matrix(~conditions)
-	if(is.null(args$dispersion)){
+	if(reps[1] > 1 && reps[2] > 1){
 		dge_ftcnts_list <- estimateDisp(dge_ftcnts_list, design)
-	} else{
+	} else if(is.na(args$dispersion) == 0){
 		dge_ftcnts_list <- exactTest(dge_ftcnts_list, pair = getPairs(sample_conditions), dispersion = args$dispersion)
+	} else{
+		warning("Dispersion value needed ( --dispersion )")
 	}
-	print(dge_ftcnts_list)
 	fit <- glmFit(dge_ftcnts_list, design)
 	lrt <- glmLRT(fit, coef=ncol(fit$design))
 	toptags <- topTags(lrt, n=nrow(lrt))$table
