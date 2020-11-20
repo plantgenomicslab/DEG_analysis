@@ -23,6 +23,10 @@ getRPKM <- function(featureCounts){
 	return(featureCounts)
 }
 
+getCPM <- function(read_counts){
+	return(apply(read_counts[,6:ncol(read_counts)], 2, FUN = function(x) (x/sum(x))*1000000))
+}
+
 getPairs <- function(samplefile){
 	return(levels(samplefile[,1][1]))
 }
@@ -38,6 +42,18 @@ getRepetitions <- function(samplefile){
 	}
 	# Return second column of data frame (should be a vector)
 	return(reps$Reps)
+}
+
+filterByMRC <- function(read_counts, min_reps, min_cpm){
+	counts_pm <- getCPM(read_counts)
+	print(head(counts_pm))
+	#counts_pm_numeric <- apply(counts_pm,1,FUN=as.numeric)
+	#print(head(counts_pm_numeric))
+	filtered_by_cpm <- counts_pm[counts_pm > min_cpm]
+	print(head(filtered_by_cpm))
+	rowsums <- rowSums(filtered_by_cpm)
+	filtedFinal <- read_counts[rowsums >= min_reps,]
+	return(filteredFinal)
 }
 
 deseqAnalysis <- function(ftc_matrix, samplefile, args){
@@ -108,11 +124,12 @@ deseqparser$add_argument("-T", "--type", help = "Type of hypothesis test to util
 					default = "LRT")
 
 parser$add_argument("-mrc", "--min_reps_min_cpm", help = "Minimum repetitions and counts per million allowed. format: min_reps,min_cpm",
-					default = "1,1")
+					default = "2,1")
 parser$add_argument("-s", "--sep", help = "Separation delimiter to use.",
 					default = "\t")
 parser$add_argument("-o", "--output", help = "File prefix to output resultant data to.",
 					default = "DEG_results")
+parser$add_argument("--test", help = "TO BE DELETED", default = 0)
 
 args <- parser$parse_args()
 # End parser
@@ -120,11 +137,17 @@ args <- parser$parse_args()
 # Test if matrix file exists
 if(file.exists(args$input)==0){
 	stop(paste("Input file ", args$input, " cannot be found."))
-}
-# End test
+} # End test
 
 matrix_file <- read.table(args$input, header=T, row.names=1, sep = args$sep)
 samplefile <- args$samplefile
+
+if(args$test == 1){
+	print(head(matrix_file))
+	filtered <- filterByMRC(apply(matrix_file,1,as.numeric), 2, 1)
+	print(head(filtered))
+	stop("Stopped: Only testing(!) filterByMRC")
+}
 
 #=============
 # TODO:
@@ -135,6 +158,7 @@ if(args$method == "deseq"){
 	deseq_results <- deseqAnalysis(matrix_file, samplefile, args)
 	write.table(deseq_results, file=args$output, sep="\t", quote=F)
 #end DESeq2 pathway
+
 # EdgeR Analysis Option Pathway
 } else if(args$method == "edger"){
 	if (args$tpm == 1){
@@ -149,5 +173,4 @@ if(args$method == "deseq"){
 		deseq_results <- edgeRAnalysis(matrix_file, samplefile, "TMM", args)
 		write.table(deseq_results, file=paste(args$output, ".TMM", sep=""), sep="\t", quote=F)
 	}
-}
-# end edgeR pathway
+} # end edgeR pathway
